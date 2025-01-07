@@ -1,0 +1,35 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    queries: "common/datasource/db/queries"
+    schema: "./common/datasource/db/migrations"
+    gen:
+      go:
+        emit_db_tags: true
+        emit_json_tags: true
+        emit_pointers_for_null_types: true
+        emit_prepared_queries: true
+        package: "db"
+        out: "common/datasource/db"
+        sql_package: "pgx/v5"
+        overrides:
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              pointer: true
+              type: "UUID"
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "timestamptz"
+            nullable: true
+            go_type:
+              import: "time"
+              pointer: true
+              type: "Time"

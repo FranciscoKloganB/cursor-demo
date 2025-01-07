@@ -1,0 +1,80 @@
+{
+  "$schema": "https://encore.dev/schemas/infra.schema.json",
+  "metadata": {
+    "app_id": "my-app",
+    "env_name": "my-env",
+    "env_type": "production",
+    "cloud": "gcp",
+    "base_url": "https://my-app.com"
+  },
+  "sql_servers": [
+    {
+      "host": "my-db-host:5432",
+      "databases": {
+        "my-db": {
+          "username": "my-db-owner",
+          "password": {"$env": "DB_PASSWORD"}
+        }
+      }
+    }
+  ],
+  "service_discovery": {
+    "myservice": {
+      "base_url": "https://myservice:8044"
+    }
+  },
+  "redis": {
+    "encoreredis": {
+      "database_index": 0,
+      "auth": {
+        "type": "acl",
+        "username": "encoreredis",
+        "password": {"$env": "REDIS_PASSWORD"}
+      },
+      "host": "my-redis-host"
+    }
+  },
+  "metrics": {
+    "type": "prometheus",
+    "remote_write_url": "https://my-remote-write-url"
+  },
+  "graceful_shutdown": {
+    "total": 30
+  },
+  "auth": [
+    {
+      "type": "key",
+      "id": 1,
+      "key": {"$env": "SVC_TO_SVC_KEY"}
+    }
+  ],
+  "secrets": {
+    "AppSecret": {"$env": "APP_SECRET"}
+  },
+  "pubsub": [
+    {
+      "type": "gcp_pubsub",
+      "project_id": "my-project",
+      "topics": {
+        "encore-topic": {
+          "name": "gcp-topic-name",
+          "subscriptions": {
+            "encore-subscription": {
+              "name": "gcp-subscription-name"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "object_storage": [
+    {
+      "type": "gcs",
+      "buckets": {
+          "my-gcs-bucket": {
+            "name": "my-gcs-bucket"
+          }
+        }
+    }
+  ]
+}

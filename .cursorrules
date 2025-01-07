@@ -1,0 +1,230 @@
+# Cursor Rules
+
+Assume the role of a Golang programmer using [Encore framework](https://encore.dev/docs/go).
+
+- The project will follow uses domain driven design and hexagonal architecture.
+
+## Folder structure for example module using domain driven design and hexagonal architecture
+
+```
+alarms
+├── application
+│   ├── commands
+│   │   ├── create_alarm_command_handler.go
+│   │   └── create_alarm_command.go
+│   ├── events
+│   │   └── alarm_created_event_handler.go
+│   ├── queries
+│   │   ├── list_alarms_query.go
+│   │   └── list_alarms_query_handler.go
+│   ├── ports
+│   │   ├── create_alarm_repository_port.go
+│   │   ├── find_alarms_repository_port.go
+│   │   └── upsert_materialized_alarm_repository_port.go
+│   └── alarms_facade.go
+│   └── alarms_factory.go
+├── domain
+│   ├── aggregates
+│   │   └── alarm_aggregate.go
+│   ├── events
+│   │   └── alarm_created_event.go
+│   ├── models
+│   │   └── alarm_read_model.go
+│   ├── valueobjects
+│   │   └── alarm_severity.go
+│   ├── entities
+│   │   └── alarm.go
+│   │   └── alarm_item.go
+├── infrastructure
+│   └── persistence
+│       ├── entities
+│       │   ├── alarm_entity.go
+│       │   └── alarm_item_entity.go
+│       ├── mappers
+│       │   └── alarm_mapper.go
+│       ├── repositories
+│       │   ├── migrations
+│       │   │   └── 1_create_foo_table.sql
+│       │   │   └── 2_create_bar_table.sql
+│       │   │   └── 3_add_column_x_on_foo_table.sql
+│       │   ├── create_alarm_repository.go
+│       │   ├── find_alarms_repository.go
+│       │   └── upsert_materialized_alarm_repository.go
+│       └── schemas
+│           └── materialized_alarm_view_schema.go
+└── presentation
+    └── http
+        ├── dto
+        │   └── create_alarm_dto.go
+        └── alarms_controller.go
+```
+
+## Hexagonal Architecture Specifications
+
+### Presentation Layer
+
+- The presentation layer contains user facing-components, such has controllers, gateways and other APIs.
+- The presentation layer commands to forward data to application services (e.g., facades).
+- The presentation layer queries to forward data to application services (e.g., facades).
+
+### Application Layer
+
+- The applicational layer contains application services (e.g., facades, handlers).
+- The applicational exposes primary ports and secondary ports.
+- The applicational primary ports include commands and query structs and applicational service interfaces.
+- The applicational secondary ports (a.k.a. adapters) are implemented on the infrastructure layer.
+- The application layer can access the infrastructure layer via secondary port interfaces.
+- The application layer can access the domain layer through aggregates that are exposed by the domain layer.
+- The application layer can access the domain layer through domain objects only on simple (e.g., little or no business logic, data-reads).
+- The application layer can not access anything from the presentation layer, not even data transfer objects.
+- Commands should be concrete classes or structs.
+- Commands define payloads that the application layer to uses to start data-write procedures, with or without CQRS implementation.
+- Queries should be concrete classes or structs.
+- Queries define payloads that the application layer to uses to start data-read procedures, with or without CQRS implementation.
+- Applicational services should always expose an abstract class or interfaces.
+- Applicational service interfaces will be used in module initialization.
+- Secondary ports should always be interfaces.
+- Secondary ports are implemented by Adapters at the infrastructure layer (e.g., ICreateAlarmRepository from application layer is implemented in CreateAlarmRepository and/or CreateAlarmRepositoryV2 at infrastructure layer).
+
+### Domain Layer
+
+- The domain layer contains domain models, value objects, events and other domain specific components that represent the business.
+- The domain layer can only be accessed from the applicational layer.
+
+### Infrastructure layer
+
+- The infrastructure layer contains data access components, such as message brokers, repositories and clients to external system.
+- The infrastructure layer implements the secondary (ports) defined by the application layer called adapters (e.g., concrete repository).
+- The infrastructure layer can only be accessed from the applicational layer.
+- Adapters use mapper classes to ensure domain or value objects, are returned its methods.
+- Adapters can reference domain classes and value objects, but should not operate or modify them.
+
+## Domain Driven Design Specifications (considering Hexagonal Architecture)
+
+### Core Concepts
+
+- Value objects must be immutable and have no identifiers (ID).
+- Value objects should be immutable and side-effect free.
+- Entities must have unique identifiers (ID) and can be mutable.
+- Entities are represented by domain objects on the domain layer.
+- Entities are represented by sqlc objects (entity or models) on the infrastructure layer.
+- Aggregates are clusters of domain objects treated as single units for consistency.
+- Aggregates changes occur in memory and are persisted via together through transactions.
+- Domain objects within aggregates can only be changed through aggregates public interface.
+
+### Factories
+
+- Use factories to handle struct validation and initialization logic.
+- Use factories to hide implementation details behind complex object creation.
+- Use factories to keep domain models focused on business logic
+
+### Services
+
+- Use applicational services (e.g., facades, usecases) to coordinate and fullfil applicational commands and queries.
+- Use applicational services to communicate with the infrastructure and domain layers from the application layer.
+- Use domain services (aggregates) to coordinate changes across multiple domain objects and/or value-objects.
+- Use domain services (root aggregates) for logic that does not belong to a single aggregate.
+- Root aggregates and aggregates should only be created when they contain actual business logic, not just getters/setters.
+- Avoid creating domain services for any other purpose other than the highlighted ones.
+
+### Repositories
+
+- Repositories should be used to effectuate persisting/retrieving of entity objects.
+- Repositories should return domain objects.
+- Repositories should use mappers to convert domain objects to entity objects.
+- Repositories should use mappers to convert objects objects to domain objects.
+- Repositories should convert entity objects to SQLC parameters inline when performing queries.
+- Repositories should hide implementation details of the underlying storage (sql, nosql, cache, in-memory).
+
+### Events
+
+- Domain events should represent domain state changes that have been persisted.
+- Domain events should be emitted from domain layer.
+- Domain events should be declared and handled in application layer.
+- Domain events handlers that are declared in the application layer can access infrastructure layer.
+- Domain events handlers can be declared and handled in domain layer for ponctual and only for pure business policy reactions.
+- Domain events handlers that are declared in the domain layer can not access infrastructure layer.
+- Integration events should be for cross-service communication (e.g., separate module boundary).
+- Integration events should be lighter than domain events.
+
+### CQRS
+
+- Separate read and write operations
+- Write side handles commands and state updates
+- Read side handles events and read model updates
+- Eventual consistency between read/write models
+- Best for read-heavy systems
+
+## Golang Specifications
+
+### Basic Principles
+
+- Always write code and documentation in English.
+- Prompt requirements should be followed carefully.
+- Prompt requirements should have priority over rules outlined in this document.
+- Add logs often and frequently using Encore logger (package: encore.dev/rlog).
+- Add logs with debug, info, warn, error and fatal levels as appropriate.
+- Add middleware to handle Cross-cutting concerns (e.g., catch-all error handling and logging, authentication, etc.).
+- Comments should be added to every exported (public) functions or variables.
+- Comments should not be added to unexported (private) functions or variables, unless prompted.
+- Consider Encore framework intricacies when writting code.
+- Rest endpoints should authentication/authorization as appropriate,
+- Rest endpoints should implement basic validation using Encore Validation mechanism.
+- Rest endpoints should implement rate limiting as appropriate.
+- Rest endpoints should return appropriate status codes.
+- Rest endpoints should return json.
+- Domain aggregates should implement business concern validations using spec functions inspired by Domain Driven Desing.
+- Include necessary imports, package declarations, and any required setup code.
+- Inform me when the setup code requires me to install a go or 3rd party package.
+
+### Nomenclature
+
+- Use PascalCase for public variables, functions, interfaces and structs.
+- Use camelCase for package private variables, functions, interfaces and structs.
+- Use camelCase for block-scoped variables.
+- Use UPPERCASE for constant and environment variables.
+- Use lowcase for directory names.
+- Use snake_case for file names.
+- Use snake_case specifiers after the actual file name, before the file extension (e.g., 'settings_controller.go').
+- Use verbs such has `is`, `has` and `can` to denote Booleanish variables (e.g., isLoading, hasError, canDelete).
+- Use complete words instead of abbreviations. The following exceptions are made:
+    - i, j denoting iterated values or indexes in loops
+    - args denoting arguments
+    - ctx denoting context
+    - err denoting error
+    - next denoting next middleware
+    - params denoting parameters
+    - req denoting request
+    - res denoting response
+    - Db denoting Database
+    - Api denoting Access Pointer Interface
+    - Url denoting Unique Resource Locator
+    - Http denoting Hyper Text Transfer Protocol
+
+### Errors and Exceptions
+
+- Errors should be handled often to fix recoverable problems, log or add context.
+- Errors should be bubbled up if we can not do anything useful with them.
+- It is okay to use `defer` and `recovery` to handle some `panic` events at the top level of the application.
+
+### Functions Specifics
+
+- Functions should have names that start with a verb (e.g., CreateFlag, DeactivateUser).
+- Functions should be short, concise and side-effect free.
+- Functions should accept no more than four parameters.
+- Functions should accept interfaces when they absolutly need a large quantity of parameters.
+- Functions should avoid deeply nested blocks.
+- Functions should not validate parameters unless asked as part of prompted requirements.
+
+### Testing
+
+- Test can use official Golang, `go-resty/resty` and `stretchr/testify` packages.
+- Test names should be concise.
+- Test names should start with a verb. Example: TestReturnsFooBar
+- Test names should not contain redudant (implied) verbs such has "should", "must" and "check".
+- Tests blocks the Arrange-Act-Assert convention for tests.
+- Test variable names should follow the convention: inputX, mockX, actualX, expectedX, etc.
+- Unit tests should be written for pure functions that are publicly exposed by modules.
+- Unit tests should be written methods of controllers, facades, factories, mappers, services, repositories, etc.
+- Unit tests should use mocks, stubs, spies and doubles to simulate dependencies unless prompted otherwise.
+- Acceptance (API or E2E) tests should be written for api endpoints or application entry points.

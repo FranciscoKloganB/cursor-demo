@@ -1,0 +1,114 @@
+version: 3
+
+env:
+  # Removes all occurrences of "[no test files]" from `test` and `test-*` commands
+  FILTER_TEST_NO_TEST_OUTPUT: "1"
+  # Removes all occurrences of "[build failed]" from `test` and `test-*` commands
+  FILTER_TEST_BUILD_FAILED_OUTPUT: "1"
+
+tasks:
+  generate-jwt-secrets:
+    desc: "Generate a pair of RSA keys for JWT encoding using RSA-256 in Base64."
+    cmds:
+      - chmod +x scripts/generate_rsa_keys.sh
+      - ./scripts/generate_rsa_keys.sh ;
+
+  generate-sql-apicore:
+    desc: "Runs SQLC generate from apicore folder;"
+    dir: apicore
+    cmds:
+      - sqlc generate
+
+  lint:
+    desc: "Run Go linter and formatter to ensure code quality;"
+    cmds:
+      - gofmt -s -w . ;
+      - REVIVE_FORCE_COLOR=1 revive -config revive.toml -formatter stylish ./... ;
+
+  modules-cache:
+    desc: "Copy all dependencies to the vendor directory for offline builds;"
+    cmds:
+      - go mod vendor ;
+
+  modules-sync:
+    desc: "Clean up go.mod and go.sum by removing unused dependencies and adding missing ones;"
+    cmds:
+      - go mod tidy ;
+
+  serve:
+    desc: "Starts a development server using encore SDK;"
+    cmds:
+      - encore run ;
+
+  benchmark:
+    desc: "Run acceptance and integration tests using Encore cli with benchmark flag. Encore automatically ups the entire system using containers;"
+    cmds:
+      - encore test -bench=. -run=Benchmark -tags=acceptance ./tests/acceptance ;
+
+  test-filter:
+    desc: "It conditionally filters out 'no test files' and 'build failed' output."
+    cmds:
+      - "echo -e \"\e[32m{{.ARGS}}...\e[0m\""
+      - "echo -e \"\e[36mFILTER_TEST_NO_TEST_OUTPUT is set to: ${FILTER_TEST_NO_TEST_OUTPUT}\e[0m\""
+      - "echo -e \"\e[36mFILTER_TEST_BUILD_FAILED_OUTPUT is set to: ${FILTER_TEST_BUILD_FAILED_OUTPUT}\e[0m\""
+      - |
+        {{.ARGS}} | {
+          if [ "${FILTER_TEST_NO_TEST_OUTPUT}" -ne 0 ]; then
+            grep -v "no test files"
+          else
+            cat
+          fi
+        } | {
+          if [ "${FILTER_TEST_BUILD_FAILED_OUTPUT}" -ne 0 ]; then
+            grep -v "build failed"
+          else
+            cat
+          fi
+        }
+    silent: true
+
+  test-acceptance:
+    desc: "Run acceptance tests using the reusable test-filter task. An API instance must be running on port 4001 (e.g., encore run --port=4001)."
+    cmds:
+      # FIXME using db reset --all destroys dbs in all namespaces this is not what we want!
+      #
+      # Instead explore using `encore build docker`
+      # - encore build docker --services=apicore --gateways=api-gateway --config ./tests/infra-config.json cursor-demo-acceptance:latest
+      - encore db reset --all
+      - task: test-filter
+        vars:
+          ARGS: "go test -v -tags=acceptance ./tests/acceptance/..."
+
+  test-integration:
+    desc: "Run integration tests for apicore microservice using encore test cli."
+    cmds:
+      # Ideally we would use `-tags=integration` but that causes Encore test
+      # command to fail. Consequently, we use negative build tags in integration
+      # test files. See example on `apicore/apicore.go`.
+      #
+      # In other words we add the tag `//go:build !acceptance && !unit` to each
+      # integration test file. What we'd like to do is add
+      # `//go:build integration` and run `encore test -v -tags=integration ./...`.
+      - encore -v test ./...;
+
+  test-unit:
+    desc: "Run unit tests using the reusable using go test cli."
+    cmds:
+      - task: test-filter
+        vars:
+          ARGS: "go test -v -tags=unit ./..."
+
+  test-unit-coverage:
+    desc: "Run unit tests and generate a CLI coverage using go test cli."
+    cmds:
+      - task: test-filter
+        vars:
+          ARGS: "go test -v -tags=unit --cover ./..."
+
+  test-unit-coverage-html:
+    desc: "Run unit tests and generate an HTML coverage using go test cli."
+    cmds:
+      - task: test-filter
+        vars:
+          ARGS: "go test -v -tags=unit --cover -coverprofile=coverage.out ./..."
+      - go tool cover -html=coverage.out
